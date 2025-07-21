@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    usize,
-};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use egg::*;
 
