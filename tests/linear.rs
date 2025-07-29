@@ -52,12 +52,14 @@ impl LinExp {
             constant: self.constant + other.constant,
         }
     }
+
+    fn to_rec_expr(&self, egraph: &EGraph<SimpleMath, LinearArith>) -> RecExpr<SimpleMath> {}
 }
 
 #[derive(Default)]
 struct LinearArith;
 impl Analysis<SimpleMath> for LinearArith {
-    type Data = LinExp;
+    type Data = Option<LinExp>;
 
     fn merge(&mut self, to: &mut Self::Data, from: Self::Data) -> DidMerge {
         egg::merge_max(to, from)
@@ -66,24 +68,30 @@ impl Analysis<SimpleMath> for LinearArith {
     fn make(egraph: &mut EGraph<SimpleMath, Self>, enode: &SimpleMath, id: Id) -> Self::Data {
         let x = |e: &EGraph<SimpleMath, Self>, i: &Id| e[*i].data.clone();
         match enode {
-            SimpleMath::Num(n) => LinExp {
+            SimpleMath::Num(n) => Some(LinExp {
                 coefs: BTreeMap::new(),
                 constant: *n,
-            },
-            SimpleMath::Add([a, b]) => x(egraph, a).add(egraph, &x(egraph, b)),
-            SimpleMath::Func(_sym, args) => args.iter().map(|i| x(egraph, i)).fold(
-                LinExp {
-                    coefs: BTreeMap::new(),
-                    constant: 0,
-                },
-                |acc, exp| acc.add(egraph, &exp),
-            ),
+            }),
+            SimpleMath::Add([a, b]) => Some(x(egraph, a)?.add(egraph, &x(egraph, b)?)),
+            SimpleMath::Func(LinearSymbol(_sym, coef), _args) => {
+                if *coef == 1 {
+                    None
+                } else {
+                    egraph.add_expr(todo!());
+                    Some(LinExp {
+                        coefs: std::iter::once((id, *coef)).collect::<BTreeMap<_, _>>(),
+                        constant: 0,
+                    })
+                }
+            }
         }
     }
 
     fn modify(egraph: &mut EGraph<SimpleMath, Self>, id: Id) {
         // let added = egraph.add(egraph[id].data.clone());
-        let added = egraph.add(todo!());
-        egraph.union(id, added);
+        if let Some(linexp) = &egraph[id].data {
+            let added = egraph.add_expr(&linexp.to_rec_expr());
+            egraph.union(id, added);
+        }
     }
 }
