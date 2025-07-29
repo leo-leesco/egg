@@ -9,7 +9,7 @@ define_language! {
     "+" = Add([Id; 2]),
     "x" = Mul([Id;2]),
     Num(i32),
-    Var(Symbol),
+    Fun(Symbol,Vec<Id>),
   }
 }
 
@@ -17,15 +17,14 @@ define_language! {
 // coefs: {x: 3, y: 2}, constant: 1
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 struct MultiPolynomial {
-    coefs: BTreeMap<BTreeSet<Symbol>, i32>,
+    coefs: BTreeMap<BTreeMap<Id, i32>, i32>,
     constant: i32,
 }
 
 impl MultiPolynomial {
     /// removes the zero values
-    fn prune(&mut self) -> MultiPolynomial {
-        let _ = self.coefs.iter().filter(|(_, v)| **v != 0);
-        self.clone()
+    fn prune(&mut self) {
+        self.coefs.retain(|_, v| *v != 0);
     }
 
     fn add(&self, other: &MultiPolynomial) -> MultiPolynomial {
@@ -33,19 +32,28 @@ impl MultiPolynomial {
         for (idx, coef) in &other.coefs {
             *coefs.entry(idx.clone()).or_insert(0) += coef;
         }
-        MultiPolynomial {
+        let mut res = MultiPolynomial {
             coefs,
             constant: self.constant + other.constant,
-        }
-        .prune()
+        };
+        res.prune();
+        res
     }
 
     fn mul(&self, other: &MultiPolynomial) -> MultiPolynomial {
-        let mut coefs: BTreeMap<BTreeSet<Symbol>, i32> = BTreeMap::new();
+        let mut coefs: BTreeMap<BTreeMap<Id, i32>, i32> = BTreeMap::new();
+        let mut merged_idx; // let's pretend all ids are actually the eclass
+                            // representative
+
         for (i1, a1) in &self.coefs {
             for (i2, a2) in &other.coefs {
+                merged_idx = i1.clone();
+                for (k, v) in i2 {
+                    merged_idx.entry(*k).and_modify(|e| *e += *v).or_insert(*v);
+                }
+
                 coefs
-                    .entry(i1.union(i2).cloned().collect())
+                    .entry(merged_idx.clone())
                     .and_modify(|c| *c += *a1 * *a2)
                     .or_insert(*a1 * *a2);
             }
@@ -68,11 +76,12 @@ impl MultiPolynomial {
             }
         }
 
-        MultiPolynomial {
+        let mut res = MultiPolynomial {
             coefs,
             constant: self.constant * other.constant,
-        }
-        .prune()
+        };
+        res.prune();
+        res
     }
 }
 
@@ -85,15 +94,15 @@ impl Analysis<SimpleMath> for LinearArith {
         egg::merge_max(to, from)
     }
 
-    fn make(egraph: &mut EGraph<SimpleMath, Self>, enode: &SimpleMath) -> Self::Data {
+    fn make(egraph: &mut EGraph<SimpleMath, Self>, enode: &SimpleMath, id: Id) -> Self::Data {
         let x = |i: &Id| egraph[*i].data.clone();
         match enode {
             SimpleMath::Num(n) => MultiPolynomial {
                 coefs: BTreeMap::new(),
                 constant: *n,
             },
-            SimpleMath::Var(v) => MultiPolynomial {
-                coefs: std::iter::once((std::iter::once(*v).collect(), 1)).collect(),
+            SimpleMath::Fun(_v, _children) => MultiPolynomial {
+                coefs: std::iter::once((std::iter::once((id, 1)).collect(), 1)).collect(),
                 constant: 0,
             },
             SimpleMath::Add([a, b]) => x(a).add(&x(b)),
