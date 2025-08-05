@@ -1,6 +1,5 @@
-use std::collections::{BTreeMap, VecDeque};
-
 use egg::*;
+use std::collections::{BTreeMap, VecDeque};
 
 define_language! {
     /// represents addition and multiplication of arbitrary multi-variate polynomials, with integer
@@ -14,7 +13,7 @@ define_language! {
 }
 
 // 3 * x * y + 2 * y + 1
-// coefs: {x: 3, y: 2}, constant: 1
+// coefs: {{x:1,y:1}: 3, {y:1}: 2}, constant: 1
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 struct MultiPolynomial {
     coefs: BTreeMap<BTreeMap<Id, i32>, i32>,
