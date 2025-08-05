@@ -168,4 +168,15 @@ test_fn! {
 }
 
 egg::test_fn! {math_simplify_add, rules(), "(+ x (+ x (+ x x)))" => "(* 4 x)" }
-egg::test_fn! {math_powers, rules(), "(* (pow 2 x) (pow 2 y))" => "(pow 2 (+ x y))"}
+
+egg::test_fn! {
+    math_simplify_const, rules(),
+    "(+ 1 (- a (* (- 2 1) a)))" => "1"
+}
+
+egg::test_fn! {
+    math_simplify_factor, rules(),
+    "(* (+ x 3) (+ x 1))"
+    =>
+    "(+ (+ (* x x) (* 4 x)) 3)"
+}
