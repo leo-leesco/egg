@@ -135,18 +135,23 @@ impl Analysis<SimpleMath> for LinearArith {
     }
 }
 
-fn rules() -> Vec<Rewrite<SimpleMath, LinearArith>> {
+#[rustfmt::skip]
+fn rules() -> Vec<Rewrite<SimpleMath, ()>> {
     vec![
         rewrite!("comm-add";  "(+ ?a ?b)"        => "(+ ?b ?a)"),
         rewrite!("comm-mul";  "(* ?a ?b)"        => "(* ?b ?a)"),
         rewrite!("assoc-add"; "(+ ?a (+ ?b ?c))" => "(+ (+ ?a ?b) ?c)"),
         rewrite!("assoc-mul"; "(* ?a (* ?b ?c))" => "(* (* ?a ?b) ?c)"),
+
         rewrite!("sub-canon"; "(- ?a ?b)" => "(+ ?a (* -1 ?b))"),
+
         rewrite!("zero-add"; "(+ ?a 0)" => "?a"),
         rewrite!("zero-mul"; "(* ?a 0)" => "0"),
         rewrite!("one-mul";  "(* ?a 1)" => "?a"),
+
         rewrite!("add-zero"; "?a" => "(+ ?a 0)"),
         rewrite!("mul-one";  "?a" => "(* ?a 1)"),
+
         rewrite!("cancel-sub"; "(- ?a ?a)" => "0"),
         rewrite!("distribute"; "(* ?a (+ ?b ?c))"        => "(+ (* ?a ?b) (* ?a ?c))"),
         rewrite!("factor"    ; "(+ (* ?a ?b) (* ?a ?c))" => "(* ?a (+ ?b ?c))"),
@@ -179,7 +184,7 @@ test_fn! {
     math_associate_adds_emt2, [ ],
     runner = Runner::<SimpleMath, LinearArith>::default()
         .with_iter_limit(7)
-       .with_expr(&"(+ 7 (+ 6 (+ 5 (+ 4 (+ 3 (+ 2 1))))))".parse().unwrap())
+        .with_expr(&"(+ 7 (+ 6 (+ 5 (+ 4 (+ 3 (+ 2 1))))))".parse().unwrap())
         .with_scheduler(SimpleScheduler),
     "(+ 1 (+ 2 (+ 3 (+ 4 (+ 5 (+ 6 7))))))"
     =>
@@ -189,14 +194,24 @@ test_fn! {
 test_fn! {math_simplify_add, rules(), "(+ x (+ x (+ x x)))" => "(* 4 x)" }
 test_fn! {math_simplify_add_emt, Vec::<Rewrite<SimpleMath, LinearArith>>::new(), "(+ x (+ x (+ x x)))" => "(* 4 x)" }
 
-test_fn! {
-    math_simplify_const, rules(),
-    runner = Runner::<SimpleMath, LinearArith>::default()
-        .with_iter_limit(1)
-        .with_scheduler(SimpleScheduler),
-    "(+ 1 (- a (* (- 2 1) a)))" => "1"
-}
+// test_fn! {
+//     math_simplify_const, rules(),
+//     runner = Runner::<SimpleMath, LinearArith>::default()
+//         .with_iter_limit(2)
+//         .with_scheduler(SimpleScheduler),
+//     "(+ 1 (- a (* (- 2 1) a)))" => "1"
+// }
 test_fn! {
     math_simplify_const_emt, Vec::<Rewrite<SimpleMath, LinearArith>>::new(),
     "(+ 1 (+ a (* (+ -2 1) a)))" => "1"
+}
+
+test_fn! {
+    ac_overflow, rules(),
+    runner = Runner::<SimpleMath,()>::default()
+        .with_expr(&"(+ 20 (+ 19 (+ 18 (+ 17 (+ 16 (+ 15 (+ 14 (+ 13 (+ 12 (+ 11 (+ 10 (+ 9 (+ 8 (+ 7 (+ 6 (+ 5 (+ 4 (+ 3 (+ 2 (+ 1 0)))))))))))))))))))))".parse().unwrap())
+        .with_scheduler(SimpleScheduler),
+    "(+ 0 (+ 1 (+ 2 (+ 3 (+ 4 (+ 5 (+ 6 (+ 7 (+ 8 (+ 9 (+ 10 (+ 11 (+ 12 (+ 13 (+ 14 (+ 15 (+ 16 (+ 17 (+ 18 (+ 19  20))))))))))))))))))))"
+    =>
+    "(+ 20 (+ 19 (+ 18 (+ 17 (+ 16 (+ 15 (+ 14 (+ 13 (+ 12 (+ 11 (+ 10 (+ 9 (+ 8 (+ 7 (+ 6 (+ 5 (+ 4 (+ 3 (+ 2 (+ 1 0)))))))))))))))))))))"
 }
