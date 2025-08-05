@@ -5,32 +5,14 @@ use std::{
 };
 
 use egg::*;
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-struct LinearSymbol(Symbol, i32);
 
 define_language! {
   enum SimpleMath {
     "+" = Add([Id; 2]),
+    "x" = Mul([Id;2]),
     Num(i32),
-    Func(LinearSymbol, Vec<Id>),
+    Func(Symbol,Vec<Id>),
   }
-}
-
-impl FromStr for LinearSymbol {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.splitn(2, ' ');
-        let sym = parts.next().ok_or(())?.to_string();
-        let arg = parts.next().and_then(|a| a.parse().ok()).ok_or(())?;
-        Ok(LinearSymbol(Symbol::from(sym), arg))
-    }
-}
-
-impl Display for LinearSymbol {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        write!(f, "{} {}", self.0, self.1)
-    }
 }
 
 // 3 * f(x) + 2 * f(y) + 1
@@ -42,10 +24,10 @@ struct LinExp {
 }
 
 impl LinExp {
-    fn add(&self, egraph: &EGraph<SimpleMath, LinearArith>, other: &LinExp) -> LinExp {
+    fn add(&self, other: &LinExp) -> LinExp {
         let mut coefs = self.coefs.clone();
         for (sym, coef) in &other.coefs {
-            *coefs.entry(egraph.find(*sym)).or_insert(0) += coef;
+            *coefs.entry(*sym).or_insert(0) += coef;
         }
         LinExp {
             coefs,
@@ -53,7 +35,33 @@ impl LinExp {
         }
     }
 
-    fn to_rec_expr(&self, egraph: &EGraph<SimpleMath, LinearArith>) -> RecExpr<SimpleMath> {}
+    fn mul(&self, other: &LinExp) -> Option<LinExp> {
+        if self.coefs.iter().all(|(_k, v)| *v == 0) {
+            Some(LinExp {
+                coefs: other
+                    .coefs
+                    .iter()
+                    .map(|(k, v)| (*k, *v * self.constant))
+                    .collect::<BTreeMap<Id, i32>>(),
+                constant: self.constant * other.constant,
+            })
+        } else if other.coefs.iter().all(|(_k, v)| *v == 0) {
+            Some(LinExp {
+                coefs: self
+                    .coefs
+                    .iter()
+                    .map(|(k, v)| (*k, *v * other.constant))
+                    .collect::<BTreeMap<Id, i32>>(),
+                constant: self.constant * other.constant,
+            })
+        } else {
+            None
+        }
+    }
+
+    fn prune(&mut self) {
+        self.coefs.retain(|_k, v| *v != 0)
+    }
 }
 
 #[derive(Default)]
@@ -66,24 +74,19 @@ impl Analysis<SimpleMath> for LinearArith {
     }
 
     fn make(egraph: &mut EGraph<SimpleMath, Self>, enode: &SimpleMath, id: Id) -> Self::Data {
-        let x = |e: &EGraph<SimpleMath, Self>, i: &Id| e[*i].data.clone();
+        let x = |i: &Id| egraph[*i].data.clone();
+
         match enode {
             SimpleMath::Num(n) => Some(LinExp {
                 coefs: BTreeMap::new(),
                 constant: *n,
             }),
-            SimpleMath::Add([a, b]) => Some(x(egraph, a)?.add(egraph, &x(egraph, b)?)),
-            SimpleMath::Func(LinearSymbol(_sym, coef), _args) => {
-                if *coef == 1 {
-                    None
-                } else {
-                    egraph.add_expr(todo!());
-                    Some(LinExp {
-                        coefs: std::iter::once((id, *coef)).collect::<BTreeMap<_, _>>(),
-                        constant: 0,
-                    })
-                }
-            }
+            SimpleMath::Mul([a, b]) => x(a)?.mul(&x(b)?),
+            SimpleMath::Add([a, b]) => Some(x(a)?.add(&x(b)?)),
+            SimpleMath::Func(_f, _args) => Some(LinExp {
+                coefs: std::iter::once((id, 1)).collect::<BTreeMap<_, _>>(),
+                constant: 0,
+            }),
         }
     }
 
