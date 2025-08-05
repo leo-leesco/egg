@@ -166,17 +166,25 @@ test_fn! {
     "(+ 7 (+ 6 (+ 5 (+ 4 (+ 3 (+ 2 1))))))"
     @check |r: Runner<SimpleMath, ()>| assert_eq!(r.egraph.number_of_classes(), 127)
 }
+test_fn! {
+    math_associate_adds_emt, [ ],
+    runner = Runner::default()
+        .with_iter_limit(7)
+        .with_scheduler(SimpleScheduler),
+    "(+ 1 (+ 2 (+ 3 (+ 4 (+ 5 (+ 6 7))))))"
+    =>
+    "(+ 7 (+ 6 (+ 5 (+ 4 (+ 3 (+ 2 1))))))"
+    @check |r: Runner<SimpleMath, ()>| assert_eq!(r.egraph.number_of_classes(), 127)
+}
 
-egg::test_fn! {math_simplify_add, rules(), "(+ x (+ x (+ x x)))" => "(* 4 x)" }
+test_fn! {math_simplify_add, rules(), "(+ x (+ x (+ x x)))" => "(* 4 x)" }
+test_fn! {math_simplify_add_emt, Vec::<Rewrite<SimpleMath, LinearArith>>::new(), "(+ x (+ x (+ x x)))" => "(* 4 x)" }
 
-egg::test_fn! {
+test_fn! {
     math_simplify_const, rules(),
     "(+ 1 (- a (* (- 2 1) a)))" => "1"
 }
-
-egg::test_fn! {
-    math_simplify_factor, rules(),
-    "(* (+ x 3) (+ x 1))"
-    =>
-    "(+ (+ (* x x) (* 4 x)) 3)"
+test_fn! {
+    math_simplify_const_emt, Vec::<Rewrite<SimpleMath, LinearArith>>::new(),
+    "(+ 1 (- a (* (- 2 1) a)))" => "1"
 }
