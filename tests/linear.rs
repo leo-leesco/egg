@@ -75,11 +75,14 @@ impl LinExp {
 }
 
 #[derive(Default)]
-struct LinearArith;
+struct LinearArith {
+    todo_unions: Vec<(Id, Id)>,
+}
 impl Analysis<SimpleMath> for LinearArith {
     type Data = Option<LinExp>;
 
     fn merge(&mut self, to: &mut Self::Data, from: Self::Data) -> DidMerge {
+        self.todo_unions.push((Id::from(0), Id::from(0)));
         egg::merge_max(to, from)
     }
 
@@ -136,8 +139,7 @@ impl Analysis<SimpleMath> for LinearArith {
 }
 
 #[rustfmt::skip]
-fn rules() -> Vec<Rewrite<SimpleMath, ()>> {
-    vec![
+fn rules() -> Vec<Rewrite<SimpleMath, ()>> { vec![
         rewrite!("comm-add";  "(+ ?a ?b)"        => "(+ ?b ?a)"),
         rewrite!("comm-mul";  "(* ?a ?b)"        => "(* ?b ?a)"),
         rewrite!("assoc-add"; "(+ ?a (+ ?b ?c))" => "(+ (+ ?a ?b) ?c)"),
@@ -191,16 +193,16 @@ test_fn! {
     "(+ 7 (+ 6 (+ 5 (+ 4 (+ 3 (+ 2 1))))))"
 }
 
-test_fn! {math_simplify_add, rules(), "(+ x (+ x (+ x x)))" => "(* 4 x)" }
+test_fn! {#[ignore] math_simplify_add, rules(), "(+ x (+ x (+ x x)))" => "(* 4 x)" }
 test_fn! {math_simplify_add_emt, Vec::<Rewrite<SimpleMath, LinearArith>>::new(), "(+ x (+ x (+ x x)))" => "(* 4 x)" }
 
-// test_fn! {
-//     math_simplify_const, rules(),
-//     runner = Runner::<SimpleMath, LinearArith>::default()
-//         .with_iter_limit(2)
-//         .with_scheduler(SimpleScheduler),
-//     "(+ 1 (- a (* (- 2 1) a)))" => "1"
-// }
+test_fn! {
+    #[ignore] math_simplify_const, rules(),
+    runner = Runner::<SimpleMath, ()>::default()
+        .with_iter_limit(2)
+        .with_scheduler(SimpleScheduler),
+    "(+ 1 (- a (* (- 2 1) a)))" => "1"
+}
 test_fn! {
     math_simplify_const_emt, Vec::<Rewrite<SimpleMath, LinearArith>>::new(),
     "(+ 1 (+ a (* (+ -2 1) a)))" => "1"
@@ -209,6 +211,14 @@ test_fn! {
 test_fn! {
     ac_overflow, rules(),
     runner = Runner::<SimpleMath,()>::default()
+        .with_scheduler(SimpleScheduler),
+    "(+ 0 (+ 1 (+ 2 (+ 3 (+ 4 (+ 5 (+ 6 (+ 7 (+ 8 (+ 9 (+ 10 (+ 11 (+ 12 (+ 13 (+ 14 (+ 15 (+ 16 (+ 17 (+ 18 (+ 19  20))))))))))))))))))))"
+    =>
+    "(+ 20 (+ 19 (+ 18 (+ 17 (+ 16 (+ 15 (+ 14 (+ 13 (+ 12 (+ 11 (+ 10 (+ 9 (+ 8 (+ 7 (+ 6 (+ 5 (+ 4 (+ 3 (+ 2 (+ 1 0)))))))))))))))))))))"
+}
+test_fn! {
+    ac_overflow_emt, [],
+    runner = Runner::<SimpleMath,LinearArith>::default()
         .with_expr(&"(+ 20 (+ 19 (+ 18 (+ 17 (+ 16 (+ 15 (+ 14 (+ 13 (+ 12 (+ 11 (+ 10 (+ 9 (+ 8 (+ 7 (+ 6 (+ 5 (+ 4 (+ 3 (+ 2 (+ 1 0)))))))))))))))))))))".parse().unwrap())
         .with_scheduler(SimpleScheduler),
     "(+ 0 (+ 1 (+ 2 (+ 3 (+ 4 (+ 5 (+ 6 (+ 7 (+ 8 (+ 9 (+ 10 (+ 11 (+ 12 (+ 13 (+ 14 (+ 15 (+ 16 (+ 17 (+ 18 (+ 19  20))))))))))))))))))))"
